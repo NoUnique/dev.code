@@ -1,11 +1,6 @@
-# Docker-based Deep Learning Model Development Environment
+# Container-based Development Environment
 
-This repository contains a Docker-based development environment 
-for deep learning model development.
-
-It can be easily used just by adding it as a submodule 
-under the project folder of the target code.
-
+This repository contains a Container-based development environment.  
 Only one container is created and the name is automatically generated.
 
 <br>
@@ -30,8 +25,6 @@ Tested environment
     -s : connect to shell(bash) \
     -k : kill container (attach and kill) \
     -d : down container (kill container and remove container, network and volumes) \
-    -t, --tensorboard : run tensorboard (default path: /home/${USER}/dev/checkpoints, port: 6006) \
-    -j, --jupyter : run jupyter notebook server (default port: 8888) \
     --no-cache : build image from scratch(use no cache)
     
     **This script makes ONLY 1 CONTAINER**
