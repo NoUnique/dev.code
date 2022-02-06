@@ -7,7 +7,7 @@ version: '3.1'
 
 services:
   dev:
-    image: codercom/code-server:4.0.1
+    image: codercom/code-server:4.0.2
     container_name: code-server
     hostname: ${COMPOSE_IMAGE_NAME}
     user: "${UID:-1000}:${GROUPS:-1000}"
@@ -23,17 +23,15 @@ services:
       - ../favicon/favicon.ico:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon.ico:ro
       - ../favicon/favicon.svg:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon.svg:ro
       - ../favicon/favicon.svg:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon-dark-support.svg:ro
-      # docker
+      # docker daemon socket
       - /var/run/docker.sock:/var/run/docker.sock
       # home
       - ~/.gitconfig:/home/coder/.gitconfig
       - ~/.bashrc:/home/coder/.bashrc
       - ~/.ssh:/home/coder/.ssh
-      #- ~/.config:/home/coder/.config
+      - ../data:/home/coder/.local  # to preserve local data (includes extensions)
       # workspace
       - ../..:/home/coder/workspace
-      # extensions
-      - ../data:/home/coder/.local
     restart: unless-stopped
     networks:
       - traefik
@@ -66,13 +64,30 @@ services:
       - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-tensorboard-font.replacepathregex.regex=^\/(font-roboto.*)
       - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-tensorboard-font.replacepathregex.replacement=/${COMPOSE_IMAGE_NAME}/proxy/6006/$${1}
     entrypoint:
-      - /bin/sh
+      - /bin/bash
       - -c
       - |
+        # Install Docker
         sudo apt update
+        sudo apt install -y software-properties-common \
+                            ca-certificates \
+                            curl \
+                            gnupg \
+                            lsb-release
+        curl -fsSL https://download.docker.com/linux/debian/gpg \
+            | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+        echo "deb [arch=$$(dpkg --print-architecture) \
+              signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+              https://download.docker.com/linux/debian $$(lsb_release -cs) stable" \
+            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt update
+        sudo apt install -y docker-ce \
+                            docker-ce-cli \
+                            containerd.io \
+                            docker-compose
+        # Install TensorBoard
         sudo apt install -y python3-pip
         pip install tensorboard
-        sudo chown $${UID}:$${GROUPS} -R /home/coder/.local
         /usr/bin/entrypoint.sh \
             --bind-addr 0.0.0.0:8080 \
             --auth "none" \
