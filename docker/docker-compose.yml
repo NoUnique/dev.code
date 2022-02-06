@@ -1,0 +1,84 @@
+# docker-compose script to build code-server dev environment.
+#
+# Author : NoUnique (kofmap@gmail.com)
+# Copyright 2022 NoUnique. All Rights Reserved
+
+version: '3.1'
+
+services:
+  dev:
+    image: codercom/code-server:4.0.1
+    container_name: code-server
+    hostname: ${COMPOSE_IMAGE_NAME}
+    user: "${UID:-1000}:${GROUPS:-1000}"
+    environment:
+      - DOCKER_USER=${USER}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      # favicon
+      - ../favicon/code.png:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/code.png:ro
+      - ../favicon/code-192.png:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/code-192.png:ro
+      - ../favicon/code-512.png:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/code-512.png:ro
+      - ../favicon/favicon.ico:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon.ico:ro
+      - ../favicon/favicon.svg:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon.svg:ro
+      - ../favicon/favicon.svg:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon-dark-support.svg:ro
+      # docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # home
+      - ~/.gitconfig:/home/coder/.gitconfig
+      - ~/.bashrc:/home/coder/.bashrc
+      - ~/.ssh:/home/coder/.ssh
+      #- ~/.config:/home/coder/.config
+      # workspace
+      - ../..:/home/coder/workspace
+      # extensions
+      - ../data:/home/coder/.local
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      # code-server
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}.priority=1
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}.rule=PathPrefix(`/${COMPOSE_IMAGE_NAME}`)
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}.service=${COMPOSE_IMAGE_NAME}
+      - traefik.http.services.${COMPOSE_IMAGE_NAME}.loadbalancer.serverstransport=docker-transport@file
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}.middlewares=basicauth@file,${COMPOSE_IMAGE_NAME}-redirect,${COMPOSE_IMAGE_NAME}-strip
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-strip.stripprefix.prefixes=/${COMPOSE_IMAGE_NAME}
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-redirect.redirectregex.regex=^(?:.*:\/\/)?([^:\/]*?\.[^\/]*).*\/${COMPOSE_IMAGE_NAME}$$
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-redirect.redirectregex.replacement=https://$${1}/${COMPOSE_IMAGE_NAME}/
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-redirect.redirectregex.permanent=true
+      # proxy
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-proxy.priority=2
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-proxy.rule=PathPrefix(`/${COMPOSE_IMAGE_NAME}/proxy`) || HeadersRegexp(`Referer`, `^(?:.*:\/\/)?([^:\/]*?\.[^\/]*).*\/${COMPOSE_IMAGE_NAME}\/proxy\/.*`)
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-proxy.service=${COMPOSE_IMAGE_NAME}
+      - traefik.http.routers.${COMPOSE_IMAGE_NAME}-proxy.middlewares=basicauth@file,${COMPOSE_IMAGE_NAME}-proxy-redirect,${COMPOSE_IMAGE_NAME}-tensorboard-font,${COMPOSE_IMAGE_NAME}-strip
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-proxy-redirect.redirectregex.regex=^(?:.*:\/\/)?([^:\/]*?\.[^\/]*).*\/${COMPOSE_IMAGE_NAME}\/proxy\/([0-9]+)$$
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-proxy-redirect.redirectregex.replacement=https://$${1}/${COMPOSE_IMAGE_NAME}/proxy/$${2}/
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-proxy-redirect.redirectregex.permanent=true
+      # tensorboard
+      # BUGFIX) misleading '/' in font path of tensorboard https://github.com/tensorflow/tensorboard/issues/1885
+      #         it still not resolved in v2.8.0 from Feb 2019 !!
+      # The port of the Tensorboard may not be the default value of 6006, or may be assigned to >6006 when running multiple Tensorboard instances,
+      # but I add the following path-replaces to make all the instances work without errors when a Tensorboard that uses port 6006 is running.
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-tensorboard-font.replacepathregex.regex=^\/(font-roboto.*)
+      - traefik.http.middlewares.${COMPOSE_IMAGE_NAME}-tensorboard-font.replacepathregex.replacement=/${COMPOSE_IMAGE_NAME}/proxy/6006/$${1}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sudo apt update
+        sudo apt install -y python3-pip
+        pip install tensorboard
+        sudo chown $${UID}:$${GROUPS} -R /home/coder/.local
+        /usr/bin/entrypoint.sh \
+            --bind-addr 0.0.0.0:8080 \
+            --auth "none" \
+            ./workspace
+
+
+networks:
+  traefik:
+    external: true
