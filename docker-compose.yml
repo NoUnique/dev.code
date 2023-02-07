@@ -26,9 +26,9 @@ services:
       - ~/.gitconfig:/home/coder/.gitconfig
       - ~/.bashrc:/home/coder/.bashrc
       - ~/.ssh:/home/coder/.ssh
-      - ../data:/home/coder/.local  # to preserve local data (includes extensions)
+      - ./data:/home/coder/.local  # to preserve local data (includes extensions)
       # workspace
-      - ../..:/home/coder/workspace
+      - ..:/home/coder/workspace
     restart: unless-stopped
     networks:
       - traefik
@@ -64,21 +64,16 @@ services:
       - /bin/bash
       - -c
       - |
-        # Copilot
-        sudo apt update
-        sudo apt install -y upzip curl
-        curl https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/1.71.8269/vspackage -o copilot-original.vsix
-        unzip copilot-original.vsix -d copilot.tmp
-        cd copilot.tmp
-        find . -type f -exec sed -i "s|\\^1\\.68\\.0|^1.66.2|g" {} \;
-        zip -r ../copilot.vsix *
-        cd ..
+        # Install Copilot
+        curl https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/1.71.8269/vspackage -o copilot.vsix.gz
+        gunzip copilot.vsix.gz
         code-server --install-extension copilot.vsix
-        rm -rf copilot.tmp
-        rm -rf copilot*.vsix
+        rm -rf copilot.vsix*
         # Install TensorBoard
+        sudo apt update
         sudo apt install -y python3-pip
         pip install tensorboard
+        # Run code-server
         /usr/bin/entrypoint.sh \
             --bind-addr 0.0.0.0:8080 \
             --auth "none" \
