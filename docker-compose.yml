@@ -7,24 +7,21 @@ version: '3.1'
 
 services:
   dev:
-    image: codercom/code-server:4.0.2
+    image: codercom/code-server:4.9.1
     container_name: code-server
     hostname: ${COMPOSE_IMAGE_NAME}
-    user: "${UID:-1000}:${GROUPS:-1000}"
+    user: "${PUID}:${PGID}"
     environment:
       - DOCKER_USER=${USER}
       - DOCKER_HOST=unix:///var/run/docker.sock
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       # favicon
-      - ../favicon/code.png:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/code.png:ro
-      - ../favicon/code-192.png:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/code-192.png:ro
-      - ../favicon/code-512.png:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/code-512.png:ro
-      - ../favicon/favicon.ico:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon.ico:ro
-      - ../favicon/favicon.svg:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon.svg:ro
-      - ../favicon/favicon.svg:/usr/lib/code-server/vendor/modules/code-oss-dev/resources/server/favicon-dark-support.svg:ro
-      # docker daemon socket
+      - ../favicon:/usr/lib/code-server/src/browser/media:ro
+      # docker-in-docker
       - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - /usr/local/bin/docker-compose:/usr/bin/docker-compose
       # home
       - ~/.gitconfig:/home/coder/.gitconfig
       - ~/.bashrc:/home/coder/.bashrc
@@ -67,24 +64,18 @@ services:
       - /bin/bash
       - -c
       - |
-        # Install Docker
+        # Copilot
         sudo apt update
-        sudo apt install -y software-properties-common \
-                            ca-certificates \
-                            curl \
-                            gnupg \
-                            lsb-release
-        curl -fsSL https://download.docker.com/linux/debian/gpg \
-            | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-        echo "deb [arch=$$(dpkg --print-architecture) \
-              signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-              https://download.docker.com/linux/debian $$(lsb_release -cs) stable" \
-            | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-        sudo apt update
-        sudo apt install -y docker-ce \
-                            docker-ce-cli \
-                            containerd.io \
-                            docker-compose
+        sudo apt install -y upzip curl
+        curl https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/1.71.8269/vspackage -o copilot-original.vsix
+        unzip copilot-original.vsix -d copilot.tmp
+        cd copilot.tmp
+        find . -type f -exec sed -i "s|\\^1\\.68\\.0|^1.66.2|g" {} \;
+        zip -r ../copilot.vsix *
+        cd ..
+        code-server --install-extension copilot.vsix
+        rm -rf copilot.tmp
+        rm -rf copilot*.vsix
         # Install TensorBoard
         sudo apt install -y python3-pip
         pip install tensorboard
