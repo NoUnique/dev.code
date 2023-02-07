@@ -3,14 +3,16 @@
 # Author : NoUnique (kofmap@gmail.com)
 # Copyright 2022 NoUnique. All Rights Reserved
 
-version: '3.1'
+version: '2.4'
 
 services:
   dev:
     image: codercom/code-server:4.9.1
     container_name: code-server
     hostname: ${COMPOSE_IMAGE_NAME}
-    user: "${PUID}:${PGID}"
+    user: ${PUID}:${PGID}
+    group_add:
+      - ${DOCKER_GID}
     environment:
       - DOCKER_USER=${USER}
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -65,14 +67,16 @@ services:
       - -c
       - |
         # Install Copilot
-        curl https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/1.71.8269/vspackage -o copilot.vsix.gz
-        gunzip copilot.vsix.gz
+        curl "https://github.gallery.vsassets.io/_apis/public/gallery/publisher/GitHub/extension/copilot/1.71.8269/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage" -o copilot.vsix
         code-server --install-extension copilot.vsix
-        rm -rf copilot.vsix*
+        rm -rf copilot.vsix
         # Install TensorBoard
         sudo apt update
         sudo apt install -y python3-pip
         pip install tensorboard
+        # Add group for docker-in-docker
+        sudo groupadd -g ${DOCKER_GID} docker
+        sudo usermod -aG docker `getent passwd ${PUID} | cut -d: -f1`
         # Run code-server
         /usr/bin/entrypoint.sh \
             --bind-addr 0.0.0.0:8080 \
