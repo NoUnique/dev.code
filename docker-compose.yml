@@ -5,6 +5,10 @@
 
 version: '2.4'
 
+networks:
+  traefik:
+    external: true
+
 services:
   dev:
     image: codercom/code-server:4.9.1
@@ -67,9 +71,9 @@ services:
       - -c
       - |
         # Install Copilot
-        curl "https://github.gallery.vsassets.io/_apis/public/gallery/publisher/GitHub/extension/copilot/1.71.8269/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage" -o copilot.vsix
-        code-server --install-extension copilot.vsix
-        rm -rf copilot.vsix
+        curl "https://github.gallery.vsassets.io/_apis/public/gallery/publisher/GitHub/extension/copilot/1.71.8269/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage" -o github.copilot.vsix
+        code-server --install-extension github.copilot.vsix
+        rm -rf github.copilot.vsix
         # Install TensorBoard
         sudo apt update
         sudo apt install -y python3-pip
@@ -82,8 +86,3 @@ services:
             --bind-addr 0.0.0.0:8080 \
             --auth "none" \
             ./workspace
-
-
-networks:
-  traefik:
-    external: true
